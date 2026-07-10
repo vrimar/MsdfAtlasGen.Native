@@ -36,8 +36,10 @@ jobs:
           - rid: linux-x64
             runner: ubuntu-22.04
             script: bash build/build-native-unix.sh linux-x64
+          # osx-x64 is cross-compiled to x86_64 on an arm64 runner: GitHub's Intel
+          # (macos-13) runners are deprecated and queue for a very long time.
           - rid: osx-x64
-            runner: macos-13
+            runner: macos-14
             script: bash build/build-native-unix.sh osx-x64
           - rid: osx-arm64
             runner: macos-14
@@ -84,14 +86,17 @@ jobs:
           VCPKG_BINARY_SOURCES: clear;files,${{ github.workspace }}/.vcpkg-binary-cache,readwrite
         run: ${{ matrix.script }}
 
+      # Only RIDs that run natively on their runner are execution-tested. osx-x64
+      # is cross-compiled on arm64 (not runnable here); win-x64 is checked by the
+      # build script's own -version call.
       - name: Set up .NET (Unix smoke test)
-        if: startsWith(matrix.rid, 'linux-') || startsWith(matrix.rid, 'osx-')
+        if: matrix.rid == 'linux-x64' || matrix.rid == 'osx-arm64'
         uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
 
       - name: Smoke test — generate an atlas with the built binary (Unix)
-        if: startsWith(matrix.rid, 'linux-') || startsWith(matrix.rid, 'osx-')
+        if: matrix.rid == 'linux-x64' || matrix.rid == 'osx-arm64'
         shell: bash
         run: |
           set -euo pipefail
