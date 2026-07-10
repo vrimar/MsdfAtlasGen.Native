@@ -1,0 +1,48 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
+    <RootNamespace>MsdfAtlasGen.Native</RootNamespace>
+    <AssemblyName>MsdfAtlasGen.Native</AssemblyName>
+    <Nullable>enable</Nullable>
+    <IsPackable>true</IsPackable>
+    <PackageId>MsdfAtlasGen.Native</PackageId>
+    <Description>Bundles the msdf-atlas-gen MSDF/MTSDF font-atlas generator executable as native runtime assets for win-x64, linux-x64, osx-x64, and osx-arm64, with a tiny managed helper that resolves the RID-appropriate binary at runtime. Built from source in CI (upstream ships Windows-only binaries).</Description>
+    <PackageTags>msdf;mtsdf;msdf-atlas-gen;font;atlas;signed-distance-field;text-rendering;native</PackageTags>
+
+    <IsAotCompatible>true</IsAotCompatible>
+    <IsTrimmable>true</IsTrimmable>
+    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+    <EnableAotAnalyzer>true</EnableAotAnalyzer>
+
+    <NativeArtifactsDir Condition="'$(NativeArtifactsDir)' == ''">$(MSBuildThisFileDirectory)..\..\artifacts\native\</NativeArtifactsDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.SourceLink.GitHub" PrivateAssets="All" />
+  </ItemGroup>
+
+  <!-- Native executables, one per RID, packed under tools/<rid>/. This is a
+       runtime-invoked executable (not a loadable native library), so tools/ is
+       the correct home and it avoids the double-copy that runtimes/<rid>/native
+       would cause on RID-specific self-contained publish. The buildTransitive
+       targets below is the sole mechanism that copies it into consumer output.
+       Conditioned on the staged artifact existing so a partial local build still packs. -->
+  <ItemGroup>
+    <None Include="$(NativeArtifactsDir)win-x64\msdf-atlas-gen.exe" Pack="true" PackagePath="tools\win-x64\"   Condition="Exists('$(NativeArtifactsDir)win-x64\msdf-atlas-gen.exe')" />
+    <None Include="$(NativeArtifactsDir)linux-x64\msdf-atlas-gen"   Pack="true" PackagePath="tools\linux-x64\" Condition="Exists('$(NativeArtifactsDir)linux-x64\msdf-atlas-gen')" />
+    <None Include="$(NativeArtifactsDir)osx-x64\msdf-atlas-gen"     Pack="true" PackagePath="tools\osx-x64\"   Condition="Exists('$(NativeArtifactsDir)osx-x64\msdf-atlas-gen')" />
+    <None Include="$(NativeArtifactsDir)osx-arm64\msdf-atlas-gen"   Pack="true" PackagePath="tools\osx-arm64\" Condition="Exists('$(NativeArtifactsDir)osx-arm64\msdf-atlas-gen')" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="buildTransitive\MsdfAtlasGen.Native.targets" Pack="true" PackagePath="buildTransitive\" />
+  </ItemGroup>
+
+  <Target Name="WarnIfNoNatives" BeforeTargets="Pack" Condition="'$(SkipNativeWarning)' != 'true'">
+    <Warning Code="MSDF001"
+             Text="No native binaries found in $(NativeArtifactsDir). The package will ship without any msdf-atlas-gen executable. Build them via build/build-native-*.{sh,ps1} or set SkipNativeWarning=true to silence."
+             Condition="!Exists('$(NativeArtifactsDir)win-x64\msdf-atlas-gen.exe') and !Exists('$(NativeArtifactsDir)linux-x64\msdf-atlas-gen') and !Exists('$(NativeArtifactsDir)osx-x64\msdf-atlas-gen') and !Exists('$(NativeArtifactsDir)osx-arm64\msdf-atlas-gen')" />
+  </Target>
+
+</Project>

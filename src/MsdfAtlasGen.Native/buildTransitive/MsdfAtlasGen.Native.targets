@@ -1,0 +1,28 @@
+<Project>
+
+  <!--
+    Copy the RID-appropriate msdf-atlas-gen executable (packed under tools/<rid>/)
+    into the consumer's output root. This is the sole copy mechanism, so there is
+    no double-copy with any SDK native-asset handling.
+    MsdfAtlasGenTool.ExecutablePath then probes AppContext.BaseDirectory.
+  -->
+  <PropertyGroup>
+    <_MsdfRid Condition="'$(RuntimeIdentifier)' != ''">$(RuntimeIdentifier)</_MsdfRid>
+    <_MsdfRid Condition="'$(_MsdfRid)' == ''">$(NETCoreSdkPortableRuntimeIdentifier)</_MsdfRid>
+
+    <_MsdfExe>msdf-atlas-gen</_MsdfExe>
+    <_MsdfExe Condition="$(_MsdfRid.StartsWith('win'))">msdf-atlas-gen.exe</_MsdfExe>
+
+    <_MsdfSrc>$(MSBuildThisFileDirectory)..\tools\$(_MsdfRid)\$(_MsdfExe)</_MsdfSrc>
+  </PropertyGroup>
+
+  <ItemGroup Condition="Exists('$(_MsdfSrc)')">
+    <None Include="$(_MsdfSrc)">
+      <Link>$(_MsdfExe)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Visible>false</Visible>
+      <Pack>false</Pack>
+    </None>
+  </ItemGroup>
+
+</Project>

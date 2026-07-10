@@ -1,0 +1,33 @@
+name: ci-pr
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-pr-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  managed:
+    name: Build managed package (no natives)
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Build solution
+        run: dotnet build MsdfAtlasGen.Native.slnx -c Release -p:SkipNativeWarning=true
+
+      - name: Run tests (native binary absent → atlas test self-skips)
+        run: dotnet test tests/MsdfAtlasGen.Native.Tests/MsdfAtlasGen.Native.Tests.csproj -c Release --no-build

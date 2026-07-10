@@ -1,0 +1,110 @@
+name: build-native
+
+on:
+  workflow_call:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'external/**'
+      - 'build/**'
+      - '.github/workflows/build-native.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'external/**'
+      - 'build/**'
+      - '.github/workflows/build-native.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-native-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: ${{ matrix.rid }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - rid: win-x64
+            runner: windows-2022
+            script: pwsh build/build-native-win.ps1
+          - rid: linux-x64
+            runner: ubuntu-22.04
+            script: bash build/build-native-unix.sh linux-x64
+          - rid: osx-x64
+            runner: macos-13
+            script: bash build/build-native-unix.sh osx-x64
+          - rid: osx-arm64
+            runner: macos-14
+            script: bash build/build-native-unix.sh osx-arm64
+
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up CMake + Ninja
+        uses: lukka/get-cmake@latest
+
+      - name: Set up MSVC (Windows)
+        if: matrix.rid == 'win-x64'
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Install Linux build deps
+        if: matrix.rid == 'linux-x64'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config nasm autoconf automake libtool
+
+      - name: Install macOS build deps
+        if: startsWith(matrix.rid, 'osx-')
+        run: brew install pkg-config nasm automake autoconf libtool
+
+      - name: Restore vcpkg binary cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/.vcpkg-binary-cache
+          key: vcpkg-${{ matrix.rid }}-${{ hashFiles('external/msdf-atlas-gen/vcpkg.json', 'build/triplets/**') }}
+          restore-keys: |
+            vcpkg-${{ matrix.rid }}-
+
+      - name: Prepare vcpkg binary cache dir
+        shell: bash
+        run: mkdir -p '${{ github.workspace }}/.vcpkg-binary-cache'
+
+      - name: Build msdf-atlas-gen (${{ matrix.rid }})
+        shell: bash
+        env:
+          VCPKG_BINARY_SOURCES: clear;files,${{ github.workspace }}/.vcpkg-binary-cache,readwrite
+        run: ${{ matrix.script }}
+
+      - name: Set up .NET (Unix smoke test)
+        if: startsWith(matrix.rid, 'linux-') || startsWith(matrix.rid, 'osx-')
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Smoke test — generate an atlas with the built binary (Unix)
+        if: startsWith(matrix.rid, 'linux-') || startsWith(matrix.rid, 'osx-')
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet build tests/MsdfAtlasGen.Native.Tests/MsdfAtlasGen.Native.Tests.csproj -c Release
+          out=tests/MsdfAtlasGen.Native.Tests/bin/Release/net10.0
+          cp "artifacts/native/${{ matrix.rid }}/msdf-atlas-gen" "$out/"
+          chmod +x "$out/msdf-atlas-gen"
+          dotnet test tests/MsdfAtlasGen.Native.Tests/MsdfAtlasGen.Native.Tests.csproj -c Release --no-build
+
+      - name: Upload msdf-atlas-gen binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: msdf-native-${{ matrix.rid }}
+          path: artifacts/native/${{ matrix.rid }}/
+          if-no-files-found: error
+          retention-days: 14
