@@ -29,6 +29,16 @@ if (!(Test-Path (Join-Path $msdf 'CMakeLists.txt'))) {
     Write-Error "msdf-atlas-gen submodule missing at $msdf. Run: git submodule update --init --recursive"
 }
 
+# Disambiguate the BitmapConstSection C-style cast in main.cpp so the source
+# compiles identically across toolchains (harmless on MSVC). Idempotent.
+$mainCpp = Join-Path $msdf 'msdf-atlas-gen/main.cpp'
+$content = [System.IO.File]::ReadAllText($mainCpp)
+$patched = $content -replace '\(msdfgen::BitmapConstSection<T, N>\) generator\.atlasStorage\(\)', 'generator.atlasStorage().operator msdfgen::BitmapConstSection<T, N>()'
+if ($patched -ne $content) {
+    Write-Host "[build-native-win] Patching main.cpp: disambiguate BitmapConstSection cast."
+    [System.IO.File]::WriteAllText($mainCpp, $patched)
+}
+
 # Resolve vcpkg.
 if (-not $VcpkgRoot) {
     if ($env:VCPKG_ROOT) {

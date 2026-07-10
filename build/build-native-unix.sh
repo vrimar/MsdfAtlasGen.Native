@@ -48,6 +48,17 @@ if [ ! -f "$MSDF/CMakeLists.txt" ]; then
     exit 1
 fi
 
+# Apple clang rejects the C-style cast in main.cpp as ambiguous because
+# BitmapAtlasStorage defines conversion operators to both BitmapConstSection and
+# BitmapConstRef (gcc/MSVC pick the direct one). Force the direct operator so the
+# source compiles identically on every toolchain. Guarded → idempotent.
+MAIN_CPP="$MSDF/msdf-atlas-gen/main.cpp"
+if grep -q '(msdfgen::BitmapConstSection<T, N>) generator.atlasStorage()' "$MAIN_CPP"; then
+    echo "[build-native-unix] Patching main.cpp: disambiguate BitmapConstSection cast."
+    sed -i.bak 's/(msdfgen::BitmapConstSection<T, N>) generator\.atlasStorage()/generator.atlasStorage().operator msdfgen::BitmapConstSection<T, N>()/' "$MAIN_CPP"
+    rm -f "$MAIN_CPP.bak"
+fi
+
 # Resolve vcpkg.
 VCPKG_ROOT="${VCPKG_ROOT:-}"
 if [ -z "$VCPKG_ROOT" ]; then
