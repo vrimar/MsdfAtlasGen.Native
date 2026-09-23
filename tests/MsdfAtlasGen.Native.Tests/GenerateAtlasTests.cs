@@ -15,8 +15,6 @@ public sealed class GenerateAtlasTests
         }
         catch (FileNotFoundException ex)
         {
-            // No native binary staged into the output (expected in a managed-only local build; CI
-            // copies the freshly built binary into the test output before running).
             return ex.Message;
         }
         catch (PlatformNotSupportedException ex)
@@ -25,19 +23,26 @@ public sealed class GenerateAtlasTests
         }
     }
 
+    private static void SkipOrFail(string? reason)
+    {
+        if (reason is null)
+            return;
+        if (Environment.GetEnvironmentVariable("MSDF_REQUIRE_NATIVE") is { Length: > 0 })
+            Assert.Fail($"MSDF_REQUIRE_NATIVE is set but the bundled executable is unavailable: {reason}");
+        Skip.If(true, reason);
+    }
+
     [SkippableFact]
     public void ExecutablePath_resolves_and_points_at_an_existing_file()
     {
-        var skip = ResolveToolOrSkipReason(out var tool);
-        Skip.If(skip is not null, skip ?? "");
+        SkipOrFail(ResolveToolOrSkipReason(out var tool));
         Assert.True(File.Exists(tool), $"Resolved tool path does not exist: {tool}");
     }
 
     [SkippableFact]
     public void Generates_a_valid_mtsdf_atlas_from_the_bundled_font()
     {
-        var skip = ResolveToolOrSkipReason(out var tool);
-        Skip.If(skip is not null, skip ?? "");
+        SkipOrFail(ResolveToolOrSkipReason(out var tool));
 
         var font = Path.Combine(AppContext.BaseDirectory, "assets", "test-font.ttf");
         Assert.True(File.Exists(font), $"Bundled test font missing: {font}");

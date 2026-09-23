@@ -1,8 +1,9 @@
 # Third-party notices
 
-MsdfAtlasGen.Native redistributes native binaries built from the following
-third-party software. Each `msdf-atlas-gen` executable is statically linked
-and therefore embeds the listed libraries.
+MsdfAtlasGen.Native and MsdfAtlasGen redistribute native binaries built from
+the following third-party software. Each binary (the `msdf-atlas-gen`
+executable and the `msdf_atlas_c` shared library) is statically linked and
+therefore embeds the listed libraries.
 
 ## msdf-atlas-gen
 

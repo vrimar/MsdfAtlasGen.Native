@@ -38,11 +38,10 @@ public static class MsdfAtlasGenTool
         var exeName = OperatingSystem.IsWindows() ? "msdf-atlas-gen.exe" : "msdf-atlas-gen";
         var baseDir = AppContext.BaseDirectory;
 
-        // The buildTransitive targets copies the binary to the output root; fall back to a
-        // tools/<rid>/ layout in case a consumer stages the package tree directly.
         var candidates = new[]
         {
             Path.Combine(baseDir, exeName),
+            Path.Combine(baseDir, "tools", PortableRuntimeIdentifier(), exeName),
             Path.Combine(baseDir, "tools", RuntimeInformation.RuntimeIdentifier, exeName),
         };
 
@@ -63,6 +62,22 @@ public static class MsdfAtlasGenTool
                 + "buildTransitive targets ran.",
             candidates[0]
         );
+    }
+
+    private static string PortableRuntimeIdentifier()
+    {
+        var os = OperatingSystem.IsWindows() ? "win"
+            : OperatingSystem.IsMacOS() ? "osx"
+            : "linux";
+        var architecture = RuntimeInformation.ProcessArchitecture switch
+        {
+            Architecture.X64 => "x64",
+            Architecture.Arm64 => "arm64",
+            Architecture.X86 => "x86",
+            Architecture.Arm => "arm",
+            var other => other.ToString().ToLowerInvariant(),
+        };
+        return $"{os}-{architecture}";
     }
 
     [UnsupportedOSPlatform("windows")]

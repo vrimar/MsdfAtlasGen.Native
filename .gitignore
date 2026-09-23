@@ -23,6 +23,7 @@ build/build-*/
 build/vcpkg_installed/
 build/vcpkg-local/
 build/*.log
+.vcpkg-binary-cache/
 
 # Claude Code local state
 .claude/settings.local.json

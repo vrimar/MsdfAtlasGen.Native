@@ -1,8 +1,10 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/MsdfAtlasGen.Native/MsdfAtlasGen.Native.csproj" />
+    <Project Path="src/MsdfAtlasGen/MsdfAtlasGen.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/MsdfAtlasGen.Native.Tests/MsdfAtlasGen.Native.Tests.csproj" />
+    <Project Path="tests/MsdfAtlasGen.Tests/MsdfAtlasGen.Tests.csproj" />
   </Folder>
 </Solution>

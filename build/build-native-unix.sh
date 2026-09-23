@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Builds the msdf-atlas-gen executable on Linux or macOS using CMake + vcpkg.
+# Builds the msdf-atlas-gen executable and the msdf_atlas_c shared library on
+# Linux or macOS using CMake + vcpkg.
 #
 # Usage: build-native-unix.sh <rid>
 #   rid: linux-x64 | osx-x64 | osx-arm64
@@ -10,7 +11,7 @@
 #   macOS (Homebrew):      brew install cmake ninja
 #
 # vcpkg provides freetype + libpng (static). Skia geometry-preprocessing is
-# disabled, so the executable is self-contained. If VCPKG_ROOT is unset a local
+# disabled, so both binaries are self-contained. If VCPKG_ROOT is unset a local
 # vcpkg checkout is bootstrapped under build/vcpkg-local.
 set -euo pipefail
 
@@ -22,19 +23,23 @@ fi
 RID="$1"
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 MSDF="$REPO/external/msdf-atlas-gen"
+SRC="$REPO/native"
 TRIPLETS="$REPO/build/triplets"
 
 EXTRA_CMAKE_ARGS=()
 case "$RID" in
     linux-x64)
         TARGET_TRIPLET="x64-linux-release"
+        LIBNAME="libmsdf_atlas_c.so"
         ;;
     osx-x64)
         TARGET_TRIPLET="x64-osx-release"
+        LIBNAME="libmsdf_atlas_c.dylib"
         EXTRA_CMAKE_ARGS=(-DCMAKE_OSX_ARCHITECTURES=x86_64 -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0)
         ;;
     osx-arm64)
         TARGET_TRIPLET="arm64-osx-release"
+        LIBNAME="libmsdf_atlas_c.dylib"
         EXTRA_CMAKE_ARGS=(-DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0)
         ;;
     *)
@@ -83,7 +88,7 @@ GENERATOR="Unix Makefiles"
 command -v ninja >/dev/null 2>&1 && GENERATOR="Ninja"
 
 echo "[build-native-unix] cmake configure ($RID, triplet=$TARGET_TRIPLET, generator=$GENERATOR)"
-cmake -S "$MSDF" -B "$BUILD_DIR" -G "$GENERATOR" \
+cmake -S "$SRC" -B "$BUILD_DIR" -G "$GENERATOR" \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_TOOLCHAIN_FILE="$TOOLCHAIN" \
     -DVCPKG_OVERLAY_TRIPLETS="$TRIPLETS" \
@@ -106,12 +111,19 @@ if [ -z "$EXE" ]; then
     exit 1
 fi
 
+LIB="$BUILD_DIR/bin/$LIBNAME"
+if [ ! -f "$LIB" ]; then
+    echo "$LIBNAME not produced; inspect $BUILD_DIR." >&2
+    exit 1
+fi
+
 NATIVE_OUT="$REPO/artifacts/native/$RID"
 mkdir -p "$NATIVE_OUT"
 cp "$EXE" "$NATIVE_OUT/msdf-atlas-gen"
 chmod +x "$NATIVE_OUT/msdf-atlas-gen"
+cp "$LIB" "$NATIVE_OUT/$LIBNAME"
 
-echo "[build-native-unix] Staged: $NATIVE_OUT/msdf-atlas-gen"
+echo "[build-native-unix] Staged: $NATIVE_OUT/msdf-atlas-gen, $NATIVE_OUT/$LIBNAME"
 ls -la "$NATIVE_OUT"
 
 # Smoke: the binary must at least start and report its version (skip on cross-arch osx).
@@ -120,3 +132,20 @@ if [ "$RID" = "linux-x64" ] || [ "$RID" = "osx-arm64" ] || [ "$RID" = "osx-x64" 
         "$NATIVE_OUT/msdf-atlas-gen" -version || true
     fi
 fi
+
+case "$RID" in
+    linux-x64)
+        bad="$(nm -D --defined-only "$NATIVE_OUT/$LIBNAME" | awk '{print $3}' | grep -v '^msdf_atlas_' || true)"
+        [ -z "$bad" ] || { echo "Unexpected exports in $LIBNAME:" >&2; echo "$bad" >&2; exit 1; }
+        bad="$(readelf -d "$NATIVE_OUT/$LIBNAME" | awk '/\(NEEDED\)/ {gsub(/[][]/, "", $5); print $5}' | grep -vE '^((libstdc\+\+|libm|libgcc_s|libc|libpthread|libdl|librt)\.so|ld-linux)' || true)"
+        [ -z "$bad" ] || { echo "Unexpected dependencies of $LIBNAME:" >&2; echo "$bad" >&2; exit 1; }
+        ;;
+    osx-*)
+        bad="$(nm -gU "$NATIVE_OUT/$LIBNAME" | awk '{print $3}' | grep -v '^_msdf_atlas_' || true)"
+        [ -z "$bad" ] || { echo "Unexpected exports in $LIBNAME:" >&2; echo "$bad" >&2; exit 1; }
+        bad="$(otool -L "$NATIVE_OUT/$LIBNAME" | tail -n +2 | awk '{print $1}' | grep -vE '^(/usr/lib/|/System/Library/|@rpath/libmsdf_atlas_c\.dylib$)' || true)"
+        [ -z "$bad" ] || { echo "Unexpected dependencies of $LIBNAME:" >&2; echo "$bad" >&2; exit 1; }
+        codesign --force --sign - "$NATIVE_OUT/$LIBNAME"
+        codesign --verify --verbose "$NATIVE_OUT/$LIBNAME"
+        ;;
+esac

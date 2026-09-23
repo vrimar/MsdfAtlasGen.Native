@@ -1,0 +1,10 @@
+{
+    "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/master/docs/vcpkg.schema.json",
+    "name": "msdfatlasgen-native",
+    "version": "0.0.0",
+    "description": "Native build manifest for the MsdfAtlasGen packages (msdf-atlas-gen executable and msdf_atlas_c shared library)",
+    "dependencies": [
+        "freetype",
+        "libpng"
+    ]
+}

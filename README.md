@@ -34,6 +34,21 @@ Process.Start(psi)!.WaitForExit();
 The package exposes only the binary; atlas parameters (`-type`, `-size`, `-pxrange`, …) are the
 caller's policy.
 
+## In-process API
+
+The sibling package [`MsdfAtlasGen`](src/MsdfAtlasGen/README.md) generates atlases in-process through a
+native `msdf_atlas_c` library and a managed API, returning pixels, glyph layout, font metrics and kerning
+without spawning a process:
+
+```xml
+<PackageReference Include="MsdfAtlasGen" Version="X.Y.Z" />
+```
+
+```csharp
+var atlas = MsdfAtlasGen.MsdfAtlas.Generate(File.ReadAllBytes("MyFont.ttf"));
+File.WriteAllBytes("atlas.png", atlas.EncodePng());
+```
+
 ## Packaged runtime identifiers
 
 | RID | Notes |
@@ -46,7 +61,9 @@ caller's policy.
 ## Building from source
 
 Binaries are produced by CI (`.github/workflows/build-native.yml`) from the pinned
-`external/msdf-atlas-gen` submodule (tag `v1.4`, recursive → `msdfgen`). Locally:
+`external/msdf-atlas-gen` submodule (tag `v1.4`, recursive → `msdfgen`). CMake is configured on `native/`,
+which wraps the submodule and builds both the `msdf-atlas-gen` executable and the `msdf_atlas_c` shared
+library (C API in `native/include/msdf_atlas_c.h`) in one pass. Locally:
 
 ```bash
 git submodule update --init --recursive
@@ -60,12 +77,13 @@ Skia-based geometry preprocessing is disabled (`-DMSDF_ATLAS_USE_SKIA=OFF`), whi
 dependency set to `freetype` + `libpng` and produces a self-contained executable. This is sufficient
 for standard `-type mtsdf -format png` atlas generation.
 
-Output is staged into `artifacts/native/<rid>/` and packed under `tools/<rid>/` in the NuGet package.
+Output is staged into `artifacts/native/<rid>/`. The executable is packed under `tools/<rid>/` in
+`MsdfAtlasGen.Native`; the shared library is packed under `runtimes/<rid>/native/` in `MsdfAtlasGen`.
 
 ## Releasing
 
-Tag `vX.Y.Z` (or run the `package` workflow manually) → CI builds all RIDs, packs, and pushes to
-NuGet.org using the `NUGET_API_KEY` repository secret.
+Tag `vX.Y.Z` (or run the `package` workflow manually) → CI builds all RIDs, packs both packages, and
+pushes to NuGet.org using the `NUGET_API_KEY` repository secret.
 
 ## License
 

@@ -1,0 +1,58 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
+    <RootNamespace>MsdfAtlasGen</RootNamespace>
+    <AssemblyName>MsdfAtlasGen</AssemblyName>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <IsPackable>true</IsPackable>
+    <PackageId>MsdfAtlasGen</PackageId>
+    <Description>In-process MSDF/MTSDF font-atlas generation for .NET. msdf-atlas-gen and msdfgen are compiled into a small native library with a C API, wrapped by an AOT-friendly managed API returning atlas pixels, glyph and font metrics, kerning, PNG encoding and JSON export. Native assets for win-x64, linux-x64, osx-x64, and osx-arm64, built from source in CI.</Description>
+    <PackageTags>msdf;mtsdf;msdf-atlas-gen;msdfgen;font;atlas;signed-distance-field;text-rendering</PackageTags>
+    <PackRootReadme>false</PackRootReadme>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+
+    <IsAotCompatible>true</IsAotCompatible>
+    <IsTrimmable>true</IsTrimmable>
+    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+    <EnableAotAnalyzer>true</EnableAotAnalyzer>
+
+    <NativeArtifactsDir Condition="'$(NativeArtifactsDir)' == ''">$(MSBuildThisFileDirectory)..\..\artifacts\native\</NativeArtifactsDir>
+    <_MsdfHostRid>$(NETCoreSdkPortableRuntimeIdentifier)</_MsdfHostRid>
+    <_MsdfHostLib Condition="$(_MsdfHostRid.StartsWith('win'))">msdf_atlas_c.dll</_MsdfHostLib>
+    <_MsdfHostLib Condition="$(_MsdfHostRid.StartsWith('osx'))">libmsdf_atlas_c.dylib</_MsdfHostLib>
+    <_MsdfHostLib Condition="'$(_MsdfHostLib)' == ''">libmsdf_atlas_c.so</_MsdfHostLib>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.SourceLink.GitHub" PrivateAssets="All" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="MsdfAtlasGen.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="$(NativeArtifactsDir)win-x64\msdf_atlas_c.dll"        Pack="true" PackagePath="runtimes\win-x64\native"   Condition="Exists('$(NativeArtifactsDir)win-x64\msdf_atlas_c.dll')" />
+    <None Include="$(NativeArtifactsDir)linux-x64\libmsdf_atlas_c.so"    Pack="true" PackagePath="runtimes\linux-x64\native" Condition="Exists('$(NativeArtifactsDir)linux-x64\libmsdf_atlas_c.so')" />
+    <None Include="$(NativeArtifactsDir)osx-x64\libmsdf_atlas_c.dylib"   Pack="true" PackagePath="runtimes\osx-x64\native"   Condition="Exists('$(NativeArtifactsDir)osx-x64\libmsdf_atlas_c.dylib')" />
+    <None Include="$(NativeArtifactsDir)osx-arm64\libmsdf_atlas_c.dylib" Pack="true" PackagePath="runtimes\osx-arm64\native" Condition="Exists('$(NativeArtifactsDir)osx-arm64\libmsdf_atlas_c.dylib')" />
+  </ItemGroup>
+
+  <!-- Host-RID copy for ProjectReference consumers; package consumers resolve runtimes/<rid>/native. -->
+  <ItemGroup Condition="Exists('$(NativeArtifactsDir)$(_MsdfHostRid)\$(_MsdfHostLib)')">
+    <None Include="$(NativeArtifactsDir)$(_MsdfHostRid)\$(_MsdfHostLib)" Link="$(_MsdfHostLib)" CopyToOutputDirectory="PreserveNewest" Visible="false" Pack="false" />
+  </ItemGroup>
+
+  <Target Name="WarnIfNoNatives" BeforeTargets="Pack" Condition="'$(SkipNativeWarning)' != 'true'">
+    <Warning Code="MSDF002"
+             Text="No msdf_atlas_c native libraries found in $(NativeArtifactsDir). The package will ship without any native library. Build them via build/build-native-*.{sh,ps1} or set SkipNativeWarning=true to silence."
+             Condition="!Exists('$(NativeArtifactsDir)win-x64\msdf_atlas_c.dll') and !Exists('$(NativeArtifactsDir)linux-x64\libmsdf_atlas_c.so') and !Exists('$(NativeArtifactsDir)osx-x64\libmsdf_atlas_c.dylib') and !Exists('$(NativeArtifactsDir)osx-arm64\libmsdf_atlas_c.dylib')" />
+  </Target>
+
+</Project>

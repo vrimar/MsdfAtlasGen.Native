@@ -1,0 +1,4 @@
+{
+    global: msdf_atlas_*;
+    local: *;
+};

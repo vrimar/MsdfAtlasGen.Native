@@ -39,6 +39,7 @@ jobs:
       - name: Set up .NET
         uses: actions/setup-dotnet@v4
         with:
+          dotnet-version: 8.0.x
           global-json-file: global.json
 
       - name: Download all native artifacts
@@ -70,8 +71,9 @@ jobs:
 
       - name: Build and pack
         run: |
-          dotnet build src/MsdfAtlasGen.Native/MsdfAtlasGen.Native.csproj -c Release -p:Version=${{ steps.version.outputs.value }}
+          dotnet build MsdfAtlasGen.Native.slnx -c Release -p:Version=${{ steps.version.outputs.value }}
           dotnet pack  src/MsdfAtlasGen.Native/MsdfAtlasGen.Native.csproj -c Release -p:Version=${{ steps.version.outputs.value }} -o packages
+          dotnet pack  src/MsdfAtlasGen/MsdfAtlasGen.csproj -c Release -p:Version=${{ steps.version.outputs.value }} -o packages
 
       - name: Upload nupkgs
         uses: actions/upload-artifact@v4

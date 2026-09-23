@@ -6,12 +6,14 @@ on:
   pull_request:
     paths:
       - 'external/**'
+      - 'native/**'
       - 'build/**'
       - '.github/workflows/build-native.yml'
   push:
     branches: [main]
     paths:
       - 'external/**'
+      - 'native/**'
       - 'build/**'
       - '.github/workflows/build-native.yml'
 
@@ -72,7 +74,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ github.workspace }}/.vcpkg-binary-cache
-          key: vcpkg-${{ matrix.rid }}-${{ hashFiles('external/msdf-atlas-gen/vcpkg.json', 'build/triplets/**') }}
+          key: vcpkg-${{ matrix.rid }}-${{ hashFiles('native/vcpkg.json', 'build/triplets/**') }}
           restore-keys: |
             vcpkg-${{ matrix.rid }}-
 
@@ -80,33 +82,33 @@ jobs:
         shell: bash
         run: mkdir -p '${{ github.workspace }}/.vcpkg-binary-cache'
 
-      - name: Build msdf-atlas-gen (${{ matrix.rid }})
+      - name: Build native binaries (${{ matrix.rid }})
         shell: bash
         env:
           VCPKG_BINARY_SOURCES: clear;files,${{ github.workspace }}/.vcpkg-binary-cache,readwrite
         run: ${{ matrix.script }}
 
-      # Only RIDs that run natively on their runner are execution-tested. osx-x64
-      # is cross-compiled on arm64 (not runnable here); win-x64 is checked by the
-      # build script's own -version call.
-      - name: Set up .NET (Unix smoke test)
-        if: matrix.rid == 'linux-x64' || matrix.rid == 'osx-arm64'
+      # Only RIDs that run natively on their runner are execution-tested; osx-x64 is
+      # cross-compiled on arm64 and cannot run here.
+      - name: Set up .NET
+        if: matrix.rid != 'osx-x64'
         uses: actions/setup-dotnet@v4
         with:
+          dotnet-version: 8.0.x
           global-json-file: global.json
 
-      - name: Smoke test — generate an atlas with the built binary (Unix)
-        if: matrix.rid == 'linux-x64' || matrix.rid == 'osx-arm64'
+      # MSDF_REQUIRE_NATIVE makes the tests fail, instead of skipping, when a binary is missing.
+      - name: Test both packages against the built binaries
+        if: matrix.rid != 'osx-x64'
         shell: bash
+        env:
+          MSDF_REQUIRE_NATIVE: '1'
         run: |
           set -euo pipefail
-          dotnet build tests/MsdfAtlasGen.Native.Tests/MsdfAtlasGen.Native.Tests.csproj -c Release
-          out=tests/MsdfAtlasGen.Native.Tests/bin/Release/net10.0
-          cp "artifacts/native/${{ matrix.rid }}/msdf-atlas-gen" "$out/"
-          chmod +x "$out/msdf-atlas-gen"
-          dotnet test tests/MsdfAtlasGen.Native.Tests/MsdfAtlasGen.Native.Tests.csproj -c Release --no-build
+          dotnet test tests/MsdfAtlasGen.Native.Tests/MsdfAtlasGen.Native.Tests.csproj -c Release
+          dotnet test tests/MsdfAtlasGen.Tests/MsdfAtlasGen.Tests.csproj -c Release
 
-      - name: Upload msdf-atlas-gen binary
+      - name: Upload native binaries
         uses: actions/upload-artifact@v4
         with:
           name: msdf-native-${{ matrix.rid }}
