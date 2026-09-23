@@ -85,6 +85,15 @@ Output is staged into `artifacts/native/<rid>/`. The executable is packed under 
 Tag `vX.Y.Z` (or run the `package` workflow manually) → CI builds all RIDs, packs both packages, and
 pushes to NuGet.org using the `NUGET_API_KEY` repository secret.
 
+Before pushing, CI checks that every RID is packed, then installs the packed `.nupkg`s into a consumer
+app ([tests/PackageSmoke/](tests/PackageSmoke/)) on win-x64, linux-x64 and osx-arm64. There it does a
+portable run on net8.0 and net10.0, a RID-specific publish and a Native AOT publish, and runs each
+result. To run it locally against packages in `<dir>`:
+
+```bash
+bash tests/PackageSmoke/run.sh <dir> <version> linux-x64
+```
+
 ## License
 
 MIT (this wrapper). Redistributed native binaries retain their upstream licenses — see

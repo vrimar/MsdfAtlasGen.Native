@@ -1,0 +1,3 @@
+<Project>
+  <!-- Stops the repo's build settings reaching this project, which must build like an external consumer. -->
+</Project>

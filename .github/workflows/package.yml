@@ -29,6 +29,8 @@ jobs:
     runs-on: ubuntu-22.04
     permissions:
       contents: read
+    outputs:
+      version: ${{ steps.version.outputs.value }}
 
     steps:
       - name: Checkout (with submodules)
@@ -75,14 +77,90 @@ jobs:
           dotnet pack  src/MsdfAtlasGen.Native/MsdfAtlasGen.Native.csproj -c Release -p:Version=${{ steps.version.outputs.value }} -o packages
           dotnet pack  src/MsdfAtlasGen/MsdfAtlasGen.csproj -c Release -p:Version=${{ steps.version.outputs.value }} -o packages
 
+      - name: Verify every RID is packed
+        env:
+          VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          set -euo pipefail
+          require() {
+              unzip -Z1 "packages/$1.$VERSION.nupkg" | grep -qx "$2" || { echo "::error::$1 is missing $2"; exit 1; }
+          }
+          for rid in win-x64 linux-x64 osx-x64 osx-arm64; do
+              case "$rid" in
+                  win-*) lib=msdf_atlas_c.dll;      exe=msdf-atlas-gen.exe ;;
+                  osx-*) lib=libmsdf_atlas_c.dylib; exe=msdf-atlas-gen ;;
+                  *)     lib=libmsdf_atlas_c.so;    exe=msdf-atlas-gen ;;
+              esac
+              require MsdfAtlasGen "runtimes/$rid/native/$lib"
+              require MsdfAtlasGen.Native "tools/$rid/$exe"
+          done
+
       - name: Upload nupkgs
         uses: actions/upload-artifact@v4
         with:
           name: nupkgs
           path: packages/
 
+  smoke:
+    name: consume packages (${{ matrix.rid }})
+    needs: pack
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # No runner executes osx-x64 natively.
+        include:
+          - rid: win-x64
+            runner: windows-2022
+          - rid: linux-x64
+            runner: ubuntu-22.04
+          - rid: osx-arm64
+            runner: macos-14
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+          global-json-file: global.json
+
+      - name: Download nupkgs
+        uses: actions/download-artifact@v4
+        with:
+          name: nupkgs
+          path: packages/
+
+      - name: Run, publish and AOT-publish a consuming app
+        shell: bash
+        env:
+          VERSION: ${{ needs.pack.outputs.version }}
+          RID: ${{ matrix.rid }}
+        run: bash tests/PackageSmoke/run.sh packages "$VERSION" "$RID"
+
+  publish:
+    name: dotnet nuget push
+    needs: [pack, smoke]
+    if: ${{ (inputs.publish == true) || startsWith(github.ref, 'refs/tags/v') }}
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+
+    steps:
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Download nupkgs
+        uses: actions/download-artifact@v4
+        with:
+          name: nupkgs
+          path: packages/
+
       - name: Publish to NuGet.org
-        if: ${{ (inputs.publish == true) || startsWith(github.ref, 'refs/tags/v') }}
         env:
           NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
         run: |
