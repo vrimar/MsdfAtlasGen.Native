@@ -49,7 +49,7 @@ jobs:
 
     steps:
       - name: Checkout (with submodules)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           submodules: recursive
 
@@ -58,7 +58,7 @@ jobs:
 
       - name: Set up MSVC (Windows)
         if: matrix.rid == 'win-x64'
-        uses: microsoft/setup-msbuild@v2
+        uses: microsoft/setup-msbuild@v3
 
       - name: Install Linux build deps
         if: matrix.rid == 'linux-x64'
@@ -71,7 +71,7 @@ jobs:
         run: brew install pkg-config nasm automake autoconf libtool
 
       - name: Restore vcpkg binary cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ${{ github.workspace }}/.vcpkg-binary-cache
           key: vcpkg-${{ matrix.rid }}-${{ hashFiles('native/vcpkg.json', 'build/triplets/**') }}
@@ -92,7 +92,7 @@ jobs:
       # cross-compiled on arm64 and cannot run here.
       - name: Set up .NET
         if: matrix.rid != 'osx-x64'
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 8.0.x
           global-json-file: global.json
@@ -109,7 +109,7 @@ jobs:
           dotnet test tests/MsdfAtlasGen.Tests/MsdfAtlasGen.Tests.csproj -c Release
 
       - name: Upload native binaries
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: msdf-native-${{ matrix.rid }}
           path: artifacts/native/${{ matrix.rid }}/
